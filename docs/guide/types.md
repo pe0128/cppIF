@@ -1,38 +1,60 @@
 # 类型推导、初始化与类型转换
 
-## 概括要点
+## RTTI {#source-53}
 
-- C++11 的 auto 用初始化表达式推导类型；decltype 依据表达式规则获取类型，decltype(x) 与 decltype((x)) 可能不同。
-- 范围 for 可按值、引用或 const 引用遍历；初始化列表支持花括号初始化并检查窄化转换。
-- enum class 提供有作用域的枚举类型；tuple 把多个不同类型的值组合为一个对象。
-- static_cast 表达常规显式转换，dynamic_cast 支持多态类型的运行时检查，reinterpret_cast 用于受约束的底层转换。
-- RTTI 包括 dynamic_cast 和 typeid；C 风格转换隐藏意图，宜使用明确的命名转换。
-- 涉及 const 的推导规则和 const_cast 详见 const 专章。
+RTTI 运行时类型信息由 typeid 和特定 dynamic_cast 操作提供。对多态对象进行运行时向下转换时，源类型通常需含虚函数；指针转换失败返回空指针，引用转换失败抛出 std::bad_cast。它可用于需要检查实际派生类型的边界接口。
+
+```cpp
+Base* p = new Derived();
+
+Derived* d = dynamic_cast<Derived*>(p);
+
+if (d) {
+	cout << "Derived" << endl;
+}
+```
+
+## 四种 cast {#source-54}
+
+static_cast 用于数值转换和允许的显式类型转换，不为所有向下转换提供运行时检查。dynamic_cast 可检查多态继承关系；reinterpret_cast 执行受约束的底层转换，不能绕过对象生命周期、对齐和别名规则。const_cast 的写入限制见[const 限定转换](/guide/const#const-cast)。
+
+```cpp
+double x = 10.5;
+int y = static_cast<int>(x);
+```
+
+```cpp
+Derived* d = dynamic_cast<Derived*>(base);
+```
+
+```cpp
+// 若实现提供 std::uintptr_t（<cstdint>），它可容纳转换后的指针值。
+std::uintptr_t address = reinterpret_cast<std::uintptr_t>(p);
+```
+
+## C 风格 cast 为什么不推荐？ {#source-55}
+
+C 风格转换可能执行不同命名转换能够表达的操作，代码中不直接体现是否移除了 const 或进行了底层解释。命名转换把意图分开，便于检查对应的前提条件；static_cast 也不代表任意转换都安全。
+
+```cpp
+int x = (int)value;
+```
 
 ## auto 类型推导 {#source-75}
+
+C++11 的 auto 根据初始化表达式推导变量类型，声明时通常必须提供初始化式。它不会使变量成为动态类型，推导后类型固定。复杂迭代器类型可用 auto 声明，const 和引用规则见[类型推导限定](/guide/const#source-76)。
 
 ```cpp
 vector<int>::iterator it = v.begin();
 ```
 
-可以：
-
 ```cpp
 auto it = v.begin();
 ```
 
-编译器推导类型。
-
-注意：
-
-```cpp
-auto x = expression;
-```
-
-必须有初始化表达式。
-
-
 ## decltype {#source-77}
+
+decltype 对未加括号的名字通常取得其声明类型；对其他表达式根据值类别推导。普通 int 变量 x 的 decltype(x) 是 int，而 decltype((x)) 是 int&。可用于依赖表达式的返回类型或类型别名，括号可能改变结果。
 
 ```cpp
 int x = 10;
@@ -40,58 +62,13 @@ int x = 10;
 decltype(x) y = 20;
 ```
 
-`y` 类型是：
-
 ```cpp
-int
+decltype((x)) reference = x;
 ```
-
-非常重要的特殊规则：
-
-```cpp
-decltype(x)
-```
-
-与：
-
-```cpp
-decltype((x))
-```
-
-可能不同。
-
-如果 x 是普通变量：
-
-```cpp
-decltype(x)      // int
-decltype((x))    // int&
-```
-
-因为 `(x)` 是左值表达式。
-
-
-## C++98 auto 和 C++11 auto {#source-160}
-
-有一个历史知识点。
-
-C++98 的 `auto` 原本是：
-
-```text
-storage-class specifier
-```
-
-几乎没人使用。
-
-C++11 重新赋予它类型推导语义：
-
-```cpp
-auto x = 10;
-```
-
-所以现代提到 `auto` 几乎都指 C++11 类型推导。
-
 
 ## 范围 for {#source-79}
+
+范围 for 对范围逐元素迭代。for (int x : v) 复制元素，for (int& x : v) 可修改原元素，for (const auto& x : v) 避免复制且通过该引用只读。遍历过程中修改容器必须遵守迭代器失效规则。
 
 ```cpp
 vector<int> v;
@@ -101,15 +78,11 @@ for (int x : v) {
 }
 ```
 
-修改：
-
 ```cpp
 for (int& x : v) {
 	x++;
 }
 ```
-
-只读而且避免复制：
 
 ```cpp
 for (const auto& x : v) {
@@ -117,18 +90,13 @@ for (const auto& x : v) {
 }
 ```
 
-这是非常常见的现代写法。
-
-
 ## 初始化列表 {#source-80}
 
-C++11：
+C++11 花括号初始化可用于聚合对象、构造函数调用和 std::initializer_list 接口。构造函数重载中 initializer_list 可能优先匹配，例如 `vector<int>`{3, 2} 是两个元素，而 `vector<int>`(3, 2) 是三个值为 2 的元素。
 
 ```cpp
 vector<int> v = {1, 2, 3, 4};
 ```
-
-对象：
 
 ```cpp
 class Vec2 {
@@ -145,35 +113,21 @@ private:
 Vec2 v{1.0f, 2.0f};
 ```
 
-统一初始化：
-
-```cpp
-T object{...};
-```
-
-
 ## 窄化转换检查 {#source-81}
+
+列表初始化禁止规定的窄化转换，例如从 double 到 int 的转换。`int x = 3.14` 会进行截断转换，而 `int x{3.14}` 不合法。需要此转换时应先明确检查范围和精度，再显式转换。
 
 ```cpp
 int x = 3.14;
 ```
 
-允许，有警告可能。
-
-但：
-
 ```cpp
 int x{3.14};
 ```
 
-编译错误。
-
-因为 `{}` 初始化禁止很多隐式 narrowing conversion。
-
-
 ## enum class {#source-103}
 
-传统：
+enum class 的枚举项属于枚举作用域，使用 Color::Red 访问，不能像传统枚举一样隐式转换为 int。可显式指定底层整数类型，用于避免不同枚举类型之间的误用。
 
 ```cpp
 enum Color {
@@ -182,10 +136,6 @@ enum Color {
 };
 ```
 
-枚举成员进入外围作用域。
-
-C++11：
-
 ```cpp
 enum class Color {
 	Red,
@@ -193,18 +143,13 @@ enum class Color {
 };
 ```
 
-使用：
-
 ```cpp
 Color::Red
 ```
 
-类型更安全。
-
-不会随意隐式转换成 int。
-
-
 ## tuple {#source-113}
+
+`std::tuple<Ts...>` 保存固定数量、可具有不同类型的元素。C++11 使用 `std::get<I>` 按编译期索引访问，可用于组合返回多个值。字段具有稳定业务含义时，自定义结构体还能提供命名成员。
 
 ```cpp
 tuple<int, string, double> t(1, "Alice", 3.14);
@@ -213,99 +158,10 @@ cout << get<0>(t);
 cout << get<1>(t);
 ```
 
-可以一次存多个不同类型。
+## C++98 auto 和 C++11 auto {#source-160}
 
-
-## RTTI {#source-53}
-
-C++ 提供运行时类型信息：
-
-```text
-dynamic_cast
-typeid
-```
-
-例如：
+C++98 的 auto 是存储类说明符，局部普通对象即使不写它也通常具有自动存储期。C++11 重新赋予 auto 类型推导含义，auto x = 10 推导 x 为 int；阅读旧代码时需要依据所用标准版本解释。
 
 ```cpp
-Base* p = new Derived();
-
-Derived* d = dynamic_cast<Derived*>(p);
-
-if (d) {
-	cout << "Derived" << endl;
-}
+auto x = 10;
 ```
-
-要求基类是多态类型，通常至少有一个 virtual 函数。
-
-
-## 四种 cast {#source-54}
-
-C++ 八股必考。
-
-#### static_cast
-
-正常类型转换：
-
-```cpp
-double x = 10.5;
-int y = static_cast<int>(x);
-```
-
-以及部分继承体系转换。
-
-#### dynamic_cast
-
-运行时安全检查：
-
-```cpp
-Derived* d = dynamic_cast<Derived*>(base);
-```
-
-失败：
-
-```text
-指针 → nullptr
-引用 → std::bad_cast
-```
-
-#### const_cast
-
-去除或增加 cv 限定，示例与修改限制统一见 [const_cast](/guide/const#const-cast)。
-
-#### reinterpret_cast
-
-底层位/地址解释：
-
-```cpp
-// 若实现提供 std::uintptr_t（<cstdint>），它可容纳转换后的指针值。
-std::uintptr_t address = reinterpret_cast<std::uintptr_t>(p);
-```
-
-非常危险，一般用于底层系统编程。
-
-
-## C 风格 cast 为什么不推荐？ {#source-55}
-
-```cpp
-int x = (int)value;
-```
-
-这种转换可能同时执行：
-
-```text
-static_cast
-const_cast
-reinterpret_cast
-```
-
-阅读代码时无法一眼判断转换意图。
-
-C++ cast 更明确。
-
-
-
-## auto 的 const 与引用规则
-
-相关规则和示例统一见 [const 章](/guide/const#source-76)。

@@ -1,16 +1,8 @@
 # 模板与编译期工具
 
-## 概括要点
-
-- 函数模板和类模板根据类型实例化；模板定义通常需要在实例化处可见，因此常写在头文件中。
-- 类型模板参数中的 typename 与 class 等价；依赖类型名称通常需要 typename 消除歧义。
-- C++11 参数包支持可变参数模板，using 支持类型别名及别名模板。
-- type_traits 提供类型查询和变换；static_assert 在编译期检查条件。
-- 转发引用与引用折叠统一放在移动语义章，constexpr 统一放在 const 章。
-
 ## 模板 {#source-48}
 
-函数模板：
+`template<typename T>` 声明类型模板参数，函数模板根据调用实参推导 T 并实例化。模板体中使用的操作必须对实际类型成立。可用于对多种数值或可比较类型执行同一算法。
 
 ```cpp
 template<typename T>
@@ -19,17 +11,14 @@ T maxValue(T a, T b) {
 }
 ```
 
-调用：
-
 ```cpp
 maxValue(10, 20);
 maxValue(1.5, 2.5);
 ```
 
-编译器根据类型实例化。
-
-
 ## 类模板 {#source-49}
+
+类模板把成员类型或行为参数化，`Box<int>` 和 `Box<double>` 是不同的类型。实例化时需要满足成员定义涉及的类型要求。模板参数确定对象的具体布局和成员函数实例。
 
 ```cpp
 template<typename T>
@@ -48,53 +37,25 @@ public:
 };
 ```
 
-使用：
-
 ```cpp
 Box<int> box(10);
 ```
 
-
 ## 模板为什么通常写在头文件里？ {#source-50}
 
-因为模板只有在：
-
-```text
-实例化时
-```
-
-编译器才产生具体代码。
-
-例如：
-
-```cpp
-Box<int>
-```
-
-编译器需要看到完整模板定义。
-
-如果模板实现只写在另一个 `.cpp` 中，当前翻译单元可能看不到定义，最终出现链接问题。
-
+隐式实例化通常需要在实例化位置看到模板定义，因此模板实现常放在头文件中。若实现放在单独源文件，可以对已知类型进行显式实例化，再供其他翻译单元链接；不能仅提供声明并期望任意类型自动获得实现。
 
 ## typename 和 class {#source-51}
 
-模板参数：
+在类型模板参数列表中，typename T 和 class T 都声明类型参数。模板体中，依赖模板参数的限定名称若代表类型，通常需要 typename，例如 typename T::value_type；它用于区分类型与值。
 
 ```cpp
 template<typename T>
 ```
 
-与：
-
 ```cpp
 template<class T>
 ```
-
-这里基本等价。
-
-但是 `typename` 还有一个重要用途。
-
-例如：
 
 ```cpp
 template<typename T>
@@ -103,16 +64,9 @@ void func() {
 }
 ```
 
-告诉编译器：
-
-```text
-T::value_type 是一个类型
-```
-
-
 ## 可变参数模板 {#source-118}
 
-C++11：
+typename... Args 声明类型参数包，args... 展开函数实参包。C++11 可以通过递归重载逐个处理参数，并提供终止重载；C++17 的折叠表达式则允许直接按运算符组合参数包。
 
 ```cpp
 template<typename T>
@@ -127,50 +81,30 @@ void print(const T& value, const Args&... args) {
 }
 ```
 
-调用：
-
 ```cpp
 print(1, "hello", 3.14);
 ```
 
-这里：
-
-```cpp
-typename... Args
-```
-
-是参数包。
-
-
 ## using 类型别名 {#source-119}
 
-传统：
+using Name = Type 声明类型别名，不创建新的独立类型。C++11 还支持别名模板，可以把模板参数代入目标类型；传统 typedef 不能直接声明别名模板。
 
 ```cpp
 typedef vector<int> IntVector;
 ```
 
-C++11：
-
 ```cpp
 using IntVector = vector<int>;
 ```
-
-模板别名更明显：
 
 ```cpp
 template<typename T>
 using Vec = vector<T>;
 ```
 
-然后：
-
-```cpp
-Vec<int> nums;
-```
-
-
 ## type_traits {#source-120}
+
+&lt;type_traits&gt; 提供 is_same、is_integral 等查询，以及 remove_reference 等类型变换。C++11 通过 ::value 读取布尔结果，通过 ::type 取得变换类型；enable_if 可控制某些模板候选是否可用。
 
 ```cpp
 #include <type_traits>
@@ -178,35 +112,10 @@ Vec<int> nums;
 cout << is_integral<int>::value;
 ```
 
-模板元编程常用：
-
-```text
-is_same
-is_integral
-is_pointer
-is_reference
-remove_reference
-enable_if
-```
-
-例如：
-
-```cpp
-static_assert(
-	is_integral<int>::value,
-	"must be integer"
-);
-```
-
-
 ## static_assert {#source-121}
 
-C++11：
+C++11 static_assert(condition, message) 在编译期检查常量条件，不满足时诊断失败。消息参数在 C++17 前不能省略。它可验证模板参数、对象布局假设或编译期计算结果，与运行时 assert 的触发阶段不同。
 
 ```cpp
 static_assert(sizeof(int) >= 4, "int too small");
 ```
-
-编译阶段检查。
-
-非常适合模板和底层代码。

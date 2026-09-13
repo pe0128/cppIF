@@ -28,6 +28,7 @@ jobs:
       - uses: actions/configure-pages@v5
       - run: npm ci
       - run: npm run docs:build
+      - run: npm run docs:check
       - uses: actions/upload-pages-artifact@v3
         with:
           path: docs/.vitepress/dist

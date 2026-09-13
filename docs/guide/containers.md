@@ -1,38 +1,12 @@
 # STL 容器与复杂度
 
-## 概括要点
-
-- STL 用容器存储元素，通过迭代器连接算法；先依据访问、插入删除、顺序与所有权需求选择容器。
-- vector 连续存储，随机访问 O(1)，尾插摊还 O(1)；扩容会使旧指针、引用与迭代器失效。
-- size 是元素数量，capacity 是已分配容量；reserve 不改变 size，resize 改变元素数量。
-- list 在已知位置插入删除 O(1)，寻找位置仍需时间；deque 支持随机访问和双端操作。
-- map / set 有序；unordered_map / unordered_set 基于哈希，查询平均 O(1)、最坏 O(n)。multi 版本允许重复键。
-- stack、queue、priority_queue 是适配器；array 大小固定；emplace 在目标位置构造，但不保证总比 push 更快。
-
 ## STL 总体结构 {#source-56}
 
-STL 可以记成：
-
-```text
-Containers
-Iterators
-Algorithms
-Function Objects
-Allocators
-```
-
-核心思想：
-
-```text
-Container ← Iterator → Algorithm
-```
-
-算法不关心具体容器，只操作迭代器。
-
+STL 包括容器、迭代器、算法、函数对象和分配器。容器管理元素存储，迭代器提供遍历接口，算法通过迭代器区间访问元素。分配器控制存储分配，函数对象可提供比较和变换操作。
 
 ## vector {#source-57}
 
-最常用。
+`std::vector<T>` 管理连续存储的元素，支持常数时间随机访问；此描述不包括 `vector<bool>` 的特殊代理表示。operator[] 不执行越界检查，at() 越界时抛异常。vector 可用于按索引访问和顺序遍历的数据。
 
 ```cpp
 vector<int> nums;
@@ -43,137 +17,38 @@ nums.push_back(20);
 cout << nums[0];
 ```
 
-内部通常：
-
-```text
-连续内存
-```
-
-因此支持：
-
-```cpp
-nums[i]
-```
-
-O(1)。
-
-
 ## vector 的 size 和 capacity {#source-58}
+
+size() 返回已构造元素数量，capacity() 返回当前分配空间可容纳的元素数量。capacity 大于 size 的部分不是可通过下标访问的已存在元素。使用 v[i] 时必须满足 i &lt; v.size()。
 
 ```cpp
 cout << v.size();
 cout << v.capacity();
 ```
 
-`size`：
-
-```text
-当前元素数量
-```
-
-`capacity`：
-
-```text
-当前已经分配、无需重新申请内存即可容纳的元素数量
-```
-
-
 ## vector 扩容 {#source-59}
 
-假设：
-
-```text
-capacity = 4
-```
-
-然后继续 push_back。
-
-空间不够时通常：
-
-```text
-申请更大的连续内存
-移动/拷贝旧元素
-释放旧内存
-```
-
-增长比例属于实现细节。
-
-常见：
-
-```text
-1.5 倍
-2 倍
-```
-
-不能说 C++ 标准规定必须 2 倍。
-
+vector 需要更大容量时重新分配连续存储，移动或复制旧元素并释放旧存储。增长倍率由实现决定，标准不要求固定为两倍。预先知道数量时可调用 reserve 降低重新分配次数；移动是否可抛异常会影响元素迁移策略。
 
 ## 为什么 vector push_back 平均 O(1)？ {#source-60}
 
-普通 push：
-
-```text
-O(1)
-```
-
-扩容：
-
-```text
-O(n)
-```
-
-但扩容不是每次发生。
-
-因此摊还复杂度：
-
-```text
-amortized O(1)
-```
-
+vector 单次尾插在无需扩容时为常数时间，扩容时需要处理已有元素，单次成本可达 O(n)。连续多次尾插的总迁移成本按摊还分析得到每次 O(1)，这不代表每次尾插耗时相同。
 
 ## reserve 和 resize {#source-61}
+
+reserve(n) 在需要时增加容量，不改变 size。resize(n) 改变元素数量，增大时构造元素，缩小时销毁尾部元素。reserve 用于预留存储，resize 用于实际创建或移除元素；缩小 size 不必缩小 capacity。
 
 ```cpp
 v.reserve(100);
 ```
 
-改变：
-
-```text
-capacity
-```
-
-不改变 size。
-
 ```cpp
 v.resize(100);
 ```
 
-改变：
-
-```text
-size
-```
-
-增大 size 时构造新增元素，缩小时销毁被移除的元素。
-
-极高频区别。
-
-
 ## vector 迭代器失效 {#source-62}
 
-发生扩容时：
-
-```text
-所有指向原存储区域的
-pointer
-reference
-iterator
-```
-
-都会失效。
-
-例如：
+vector 重新分配会使旧元素的全部指针、引用和迭代器失效。未扩容的尾插仍使旧 end() 失效；中间插入或删除还会使操作位置及其后的迭代器失效。示例若在 push_back 中扩容，最后解引用 p 将访问失效地址。
 
 ```cpp
 vector<int> v;
@@ -189,10 +64,9 @@ v.push_back(4);
 cout << *p;
 ```
 
-如果期间发生扩容，`p` 已经悬空。
-
-
 ## list {#source-63}
+
+`std::list<T>` 通常使用双向链表。在已知迭代器位置插入或删除单个元素为 O(1)，寻找第 n 个位置仍需线性遍历，不支持 operator[]。插入不使已有元素迭代器失效，删除主要使被删除元素的迭代器失效。
 
 ```cpp
 list<int> l;
@@ -201,22 +75,9 @@ l.push_back(10);
 l.push_front(20);
 ```
 
-通常是双向链表。
-
-特点：
-
-```text
-已知迭代器位置时插入删除 O(1)
-随机访问 O(n)
-没有 operator[]
-节点分散
-迭代器稳定性较好
-```
-
-
 ## deque {#source-64}
 
-双端队列：
+`std::deque<T>` 支持常数时间随机访问和双端插入删除，通常使用分段存储，不能把所有元素当成一整块连续数组。它可用于从两端增长的队列；迭代器失效规则与 vector 和 list 不同。
 
 ```cpp
 deque<int> d;
@@ -225,37 +86,13 @@ d.push_back(1);
 d.push_front(2);
 ```
 
-特点：
+## vector、list和deque 对比 {#source-65}
 
-```text
-两端插入删除高效
-支持随机访问
-不是一整块连续内存
-```
-
-通常通过分段连续内存实现。
-
-
-## vector / list / deque 对比 {#source-65}
-
-| 容器 | 随机访问 | 中间插入 | 尾插 | 内存 |
-|---|---:|---:|---:|---|
-| vector | O(1) | O(n) | 摊还 O(1) | 连续 |
-| list | O(n) | O(1)，需已知位置 | O(1) | 节点 |
-| deque | O(1) | O(n) | O(1) | 分段 |
-
-实际工程中默认优先考虑：
-
-```cpp
-vector
-```
-
-因为缓存局部性很好。
-
-不要因为 list 理论插入 O(1) 就默认认为它更快。
-
+vector 随机访问 O(1)，中间插入 O(n)，尾插摊还 O(1)；list 不支持常数时间随机访问，已知位置插入 O(1)；deque 随机访问 O(1)，双端操作高效。连续遍历时 vector 的缓存局部性较好，list 的位置查找和节点分配成本需单独计算。
 
 ## map {#source-66}
+
+`std::map<Key, T>` 按比较器维护唯一键值对，查找和按键插入通常为 O(log n)。常见实现使用红黑树，但标准未规定树种类。operator[] 在键不存在时插入默认值；只查询而不插入可使用 find。
 
 ```cpp
 map<string, int> scores;
@@ -264,22 +101,9 @@ scores["Alice"] = 100;
 scores["Bob"] = 90;
 ```
 
-C++98 `map` 通常通过红黑树实现。
-
-标准只规定复杂度和行为，不强制必须红黑树。
-
-常见复杂度：
-
-```text
-find    O(log n)
-insert  O(log n)
-erase   O(log n)
-```
-
-而且 key 有序。
-
-
 ## set {#source-67}
+
+`std::set<T>` 按比较器维护唯一元素，重复插入等价键不会增加元素。元素不能通过普通迭代器直接修改为破坏排序的值。set 可用于去重和有序遍历，唯一性由比较器等价关系决定。
 
 ```cpp
 set<int> s;
@@ -289,25 +113,9 @@ s.insert(1);
 s.insert(3);
 ```
 
-最终：
+## multimap、multiset {#source-68}
 
-```text
-1
-3
-```
-
-特点：
-
-```text
-唯一元素
-自动排序
-通常平衡搜索树
-```
-
-
-## multimap / multiset {#source-68}
-
-允许重复 key：
+multimap 和 multiset 允许等价键重复出现。equal_range(key) 可以取得全部等价键对应的区间，适用于一对多映射或需要保留重复元素的有序集合。
 
 ```cpp
 multiset<int> s;
@@ -316,10 +124,9 @@ s.insert(1);
 s.insert(1);
 ```
 
+## stack、queue和priority_queue {#source-69}
 
-## stack / queue / priority_queue {#source-69}
-
-stack：
+stack 提供后进先出访问，queue 提供先进先出访问，priority_queue 按比较器提供优先级最高元素。默认 `priority_queue<int>` 的 top() 是最大值。pop() 移除元素但不返回值，取值应先调用 top() 或 front()。
 
 ```cpp
 stack<int> s;
@@ -330,10 +137,6 @@ s.push(2);
 s.pop();
 ```
 
-LIFO。
-
-queue：
-
 ```cpp
 queue<int> q;
 
@@ -342,10 +145,6 @@ q.push(2);
 
 q.pop();
 ```
-
-FIFO。
-
-priority_queue：
 
 ```cpp
 priority_queue<int> q;
@@ -357,47 +156,17 @@ q.push(5);
 cout << q.top();
 ```
 
-输出：
-
-```text
-10
-```
-
-通常底层：
-
-```text
-vector + heap
-```
-
-
 ## std::array {#source-112}
 
-C++11：
+`std::array<T, N>` 提供大小在编译期确定的连续元素存储，具有 size、begin 和 end 等容器接口。它按值复制全部元素，不像函数参数中的普通数组那样自动退化为指针。N 不在运行时改变。
 
 ```cpp
 array<int, 3> arr = {1, 2, 3};
 ```
 
-相比 C 数组：
-
-```cpp
-int arr[3];
-```
-
-提供 STL 接口：
-
-```cpp
-arr.begin();
-arr.end();
-arr.size();
-```
-
-但大小仍然编译期固定。
-
-
 ## unordered_map {#source-114}
 
-C++11：
+unordered_map 基于哈希组织唯一键值对，平均查找、插入和按键删除为 O(1)，最坏可达 O(n)。遍历顺序不按键排序，rehash 可能使迭代器失效。自定义键需要配套满足一致性要求的哈希和相等比较。
 
 ```cpp
 unordered_map<string, int> m;
@@ -405,108 +174,22 @@ unordered_map<string, int> m;
 m["Alice"] = 100;
 ```
 
-通常基于哈希表。
-
-平均：
-
-```text
-find    O(1)
-insert  O(1)
-erase   O(1)
-```
-
-最坏：
-
-```text
-O(n)
-```
-
-
 ## map vs unordered_map {#source-115}
 
-这是极高频八股。
-
-| | map | unordered_map |
-|---|---|---|
-| 典型实现 | 红黑树 | 哈希表 |
-| 是否排序 | 是 | 否 |
-| 查询 | O(log n) | 平均 O(1) |
-| 最坏查询 | O(log n) | O(n) |
-| 范围查询 | 很方便 | 不适合 |
-| 内存 | 树节点 | bucket + node |
-
-需要：
-
-```text
-有序
-lower_bound
-范围查询
-稳定 O(log n)
-```
-
-选 map。
-
-主要追求普通 key-value 快速查询：
-
-```text
-unordered_map
-```
-
-通常更合适。
-
+map 按比较器有序，查找为 O(log n)，适合 lower_bound 和有序区间操作；unordered_map 无键顺序保证，平均查询为 O(1)，最坏 O(n)。内存占用和常数成本受键类型、哈希质量、节点和桶结构影响。
 
 ## 哈希冲突 {#source-116}
 
-两个 key：
-
-```text
-hash(key1) % bucket_count
-==
-hash(key2) % bucket_count
-```
-
-落入同一个 bucket。
-
-这叫：
-
-```text
-hash collision
-```
-
-常见解决：
-
-```text
-链地址法
-开放寻址法
-```
-
-`std::unordered_map` 的具体内部实现由标准库决定。
-
+不同键映射到同一桶时发生哈希冲突。哈希表可通过链地址等结构保存这些元素，再使用相等比较确定匹配项。负载因子和哈希分布会影响查找成本；相等的键必须产生相同哈希值。
 
 ## emplace {#source-117}
 
-以前：
+emplace_back(args...) 将参数转发给元素构造函数，在容器存储中构造元素；push_back(value) 接收已形成的值并复制或移动它。emplace 可以省去某些临时对象，但构造函数重载、扩容和异常保证仍会影响行为和成本。
 
 ```cpp
 v.push_back(Player(100, 50));
 ```
 
-C++11：
-
 ```cpp
 v.emplace_back(100, 50);
 ```
-
-让容器直接使用参数构造元素。
-
-可以减少某些临时对象/移动。
-
-但现代编译器优化很强，不能简单背成：
-
-```text
-emplace_back 永远比 push_back 快
-```
-
-它主要表达：
-
-> 直接在目标位置构造对象。

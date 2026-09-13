@@ -1,15 +1,8 @@
 # 仿函数、lambda 与函数包装
 
-## 概括要点
-
-- 仿函数是实现 operator() 的对象，可以携带状态并参与模板优化。
-- lambda 生成闭包对象；捕获列表决定按值保存数据还是引用外部对象。
-- 引用捕获需要保证被引用对象活得足够久；值捕获默认通过 const 调用运算符访问副本。
-- std::function 用类型擦除包装可调用对象，可能增加开销；std::bind 绑定参数，简单场景常可用 lambda 表达。
-
 ## 仿函数 {#source-73}
 
-C++98 没有 lambda 时大量使用。
+函数对象通过 operator() 接受参数并执行操作。对象可以持有比较阈值等状态，类型可作为算法模板参数参与实例化。示例中的 Compare 使 sort 按降序排列。
 
 ```cpp
 struct Compare {
@@ -19,35 +12,17 @@ struct Compare {
 };
 ```
 
-然后：
-
 ```cpp
 sort(v.begin(), v.end(), Compare());
 ```
 
-这种对象叫：
-
-```text
-function object
-functor
-```
-
-
 ## 为什么 STL 经常使用仿函数而不是函数指针？ {#source-74}
 
-仿函数可以：
-
-```text
-拥有状态
-被模板内联
-提供类型信息
-编译器优化空间更大
-```
-
-C++11 lambda 本质上也会生成类似匿名函数对象。
-
+函数指针保存函数地址，不能直接携带每个实例独立的成员状态。函数对象可以把状态保存为成员，算法模板知道其具体类型时可优化调用；是否内联仍取决于编译器。需要有状态比较器时可使用函数对象。
 
 ## lambda {#source-82}
+
+C++11 lambda 表达式由捕获列表、参数列表、可选返回类型和函数体组成，产生闭包对象。它可作为算法谓词或局部回调；C++11 参数类型需显式写出，auto 参数在 C++14 才可用。
 
 ```cpp
 auto add = [](int a, int b) {
@@ -57,16 +32,9 @@ auto add = [](int a, int b) {
 cout << add(1, 2);
 ```
 
-基本形式：
-
-```cpp
-[capture](parameters) -> return_type {
-	body
-}
-```
-
-
 ## lambda 捕获 {#source-83}
+
+值捕获保存外部变量的副本，引用捕获引用原变量。[=] 和 [&] 指定默认捕获方式，也可混合指定例外。引用捕获的对象必须在闭包使用期间存活；mutable lambda 可修改值捕获副本，但不会因此修改原变量。
 
 ```cpp
 int x = 10;
@@ -76,41 +44,15 @@ auto f = [x]() {
 };
 ```
 
-值捕获。
-
-引用捕获：
-
 ```cpp
 auto f = [&x]() {
 	x++;
 };
 ```
 
-全部值捕获：
-
-```cpp
-[=]
-```
-
-全部引用捕获：
-
-```cpp
-[&]
-```
-
-混合：
-
-```cpp
-[=, &x]
-[&, x]
-```
-
-
 ## lambda 底层是什么？ {#source-84}
 
-编译器大体会生成匿名类。
-
-例如：
+每个 lambda 表达式产生独特的闭包类型，捕获值可表现为该类型的成员，调用通过 operator() 执行。没有 mutable 时，普通 lambda 的调用运算符为 const。示例中的匿名类仅用于展示成员和调用结构，不是编译器必须采用的源码形式。
 
 ```cpp
 int x = 10;
@@ -119,8 +61,6 @@ auto f = [x](int y) {
 	return x + y;
 };
 ```
-
-概念上类似：
 
 ```cpp
 class Anonymous {
@@ -138,12 +78,9 @@ public:
 };
 ```
 
-所以 lambda 本质可以理解成：
-
-> 编译器自动生成的函数对象。
-
-
 ## std::function {#source-122}
+
+`std::function<R(Args...)>` 使用类型擦除保存符合签名的可复制可调用目标。可保存普通函数、闭包和函数对象，可能发生动态分配或间接调用。空包装器被调用时抛 std::bad_function_call；只可移动目标可考虑 C++23 的 move_only_function。
 
 ```cpp
 function<int(int, int)> func;
@@ -155,19 +92,9 @@ func = [](int a, int b) {
 cout << func(1, 2);
 ```
 
-它可以包装：
-
-```text
-普通函数
-lambda
-仿函数
-std::bind 的结果
-```
-
-代价是比直接模板调用可能有额外类型擦除开销。
-
-
 ## std::bind {#source-123}
+
+std::bind 将可调用对象和部分参数绑定，placeholders::_1 等占位符表示未来调用参数。绑定参数通常按值保存，需要引用语义时可用 std::ref。lambda 可以显式写出同一参数映射并控制捕获。
 
 ```cpp
 int add(int a, int b) {
@@ -178,11 +105,3 @@ auto f = bind(add, 10, placeholders::_1);
 
 cout << f(5);
 ```
-
-等价效果：
-
-```text
-add(10, 5)
-```
-
-现代代码中很多场合 lambda 更清晰。

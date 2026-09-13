@@ -1,30 +1,8 @@
 # 内存、生命周期、RAII 与异常
 
-## 概括要点
-
-- RAII 把资源释放绑定到对象析构，可覆盖正常返回和异常展开；所有权应明确，避免多个对象重复释放同一资源。
-- new / delete、new[] / delete[]、malloc / free 必须正确配对；malloc 不调用构造函数，free 不调用析构函数。
-- 区分自动、静态、动态和线程存储期；局部指针的生命周期与其指向的动态对象并不相同。
-- 悬空指针、未初始化指针、内存泄漏和重复释放有不同成因；置空一个指针不会修复其他别名。
-- 未定义行为不等于必然崩溃；越界、释放后使用等代码的结果没有标准保证。
-- 使用 try / throw / catch 处理异常，通常以 const std::exception& 捕获，依靠 RAII 清理已构造的局部对象。
-
 ## RAII {#source-22}
 
-以下示例使用 C++11 的 = delete 禁止复制，避免重复关闭文件；C++98 可将复制操作声明为 private 且不实现。
-
-这是 C++ 核心思想之一。
-
-RAII：
-
-```text
-Resource Acquisition Is Initialization
-资源获取即初始化
-```
-
-把资源生命周期绑定到对象生命周期。
-
-例如：
+RAII 资源获取即初始化，将资源交给对象持有，并在析构函数中释放。作用域退出和异常栈展开都会销毁已构造的自动对象。文件、锁和动态内存都可按此方式管理。示例使用 C++11 的 = delete 禁止复制，避免同一个 FILE* 被重复关闭；C++98 可将复制操作声明为 private 且不定义。
 
 ```cpp
 class File {
@@ -46,31 +24,15 @@ public:
 };
 ```
 
-于是：
-
 ```cpp
 void func() {
 	File file("a.txt");
 }
 ```
 
-离开作用域时自动释放。
+## new、delete {#source-27}
 
-现代 C++ 的：
-
-```text
-vector
-string
-unique_ptr
-shared_ptr
-lock_guard
-fstream
-```
-
-都大量利用 RAII。
-
-
-## new / delete {#source-27}
+new T 创建单个对象，delete 释放该对象；new T[n] 创建数组，必须使用 delete[]。malloc 获得的内存则交给 free。配对错误会导致未定义行为；delete 空指针是允许的。
 
 ```cpp
 int* p = new int(10);
@@ -78,73 +40,27 @@ int* p = new int(10);
 delete p;
 ```
 
-数组：
-
 ```cpp
 int* arr = new int[100];
 
 delete[] arr;
 ```
 
-必须配对：
-
-```text
-new      → delete
-new[]    → delete[]
-```
-
-
 ## new 和 malloc 区别 {#source-28}
 
-极高频八股。
-
-`malloc`：
+new 表达式取得存储并初始化对象，delete 表达式调用析构并释放存储。malloc 和 free 仅管理原始存储，不调用 C++ 构造函数或析构函数。普通抛异常形式的 new 分配失败时抛出 std::bad_alloc，malloc 失败时返回空指针。
 
 ```cpp
 A* p = static_cast<A*>(malloc(sizeof(A)));
 ```
 
-只分配原始内存。
-
-不会调用构造函数。
-
-`new`：
-
 ```cpp
 A* p = new A();
 ```
 
-会：
-
-```text
-1. 分配内存
-2. 调用构造函数
-```
-
-delete：
-
-```text
-1. 调用析构函数
-2. 释放内存
-```
-
-free：
-
-```text
-只释放内存
-```
-
-此外：
-
-```text
-malloc 失败返回 NULL
-普通 new 失败默认抛 std::bad_alloc
-```
-
-
 ## 栈和堆 {#source-29}
 
-典型：
+局部普通变量通常具有自动存储期，new 创建的对象具有动态存储期。示例中 a 和指针变量 p 离开作用域后结束生命周期，但 new int 创建的对象需要 delete。标准还区分静态存储期和 C++11 的线程存储期；“栈”和“堆”是常见实现术语。
 
 ```cpp
 void func() {
@@ -155,25 +71,9 @@ void func() {
 }
 ```
 
-这里一般：
-
-```text
-a            自动存储期对象
-p            自动存储期指针对象
-new int      动态存储期对象
-```
-
-传统八股会说“栈和堆”，但标准 C++ 更准确地讨论：
-
-```text
-automatic storage duration
-dynamic storage duration
-static storage duration
-thread storage duration（C++11）
-```
-
-
 ## 异常 {#source-52}
+
+throw 抛出异常，try 指定受保护代码，catch 按类型处理异常。以 const std::exception& 捕获可避免复制和基类切片。异常向外传播时销毁沿途已构造的自动对象；手工分配的裸资源需要 RAII 所有者负责清理。
 
 ```cpp
 try {
@@ -184,24 +84,9 @@ catch (const exception& e) {
 }
 ```
 
-基本结构：
-
-```text
-try
-throw
-catch
-```
-
-通常推荐：
-
-```cpp
-catch (const std::exception& e)
-```
-
-通过 const 引用接收。
-
-
 ## 悬空指针 {#source-152}
+
+对象销毁后，原来指向该对象的指针可能仍保存旧地址，但不能再通过它访问对象。delete 后将当前指针设为空可改变该变量的后续状态，不会修复其他指向同一对象的别名。示例第一次解引用发生在释放后，是错误用法。
 
 ```cpp
 int* p = new int(10);
@@ -211,31 +96,14 @@ delete p;
 cout << *p;
 ```
 
-delete 后：
-
-```text
-p 仍保存旧地址
-```
-
-但该对象已不存在。
-
-p 是：
-
-```text
-dangling pointer
-```
-
-可以：
-
 ```cpp
 delete p;
 p = nullptr;
 ```
 
-降低误用风险。
-
-
 ## 野指针 {#source-153}
+
+未初始化的局部指针不包含可用目标地址，读取并解引用它不能视为合法访问。声明时可初始化为空指针，但 nullptr 同样不能解引用，需要先绑定有效对象。示例首段为错误代码。
 
 ```cpp
 int* p;
@@ -243,22 +111,13 @@ int* p;
 *p = 10;
 ```
 
-p 未初始化。
-
-这种指针常称：
-
-```text
-wild pointer
-```
-
-应该：
-
 ```cpp
 int* p = nullptr;
 ```
 
-
 ## 内存泄漏 {#source-154}
+
+动态对象未被释放且最后一个可用于释放它的句柄丢失时，会造成资源泄漏。示例函数返回时只销毁局部指针变量，new[] 创建的数组仍未释放。可用容器或拥有资源的智能指针把释放动作绑定到对象析构。
 
 ```cpp
 void func() {
@@ -266,26 +125,9 @@ void func() {
 }
 ```
 
-函数结束：
-
-```text
-p 消失
-```
-
-动态分配的内存还存在。
-
-已经找不到地址。
-
-这就是：
-
-```text
-memory leak
-```
-
-现代 C++ 用 RAII 和智能指针解决大量此类问题。
-
-
 ## double delete {#source-155}
+
+对同一非空动态对象执行两次 delete 会导致未定义行为。多指针别名不表示多个独立所有者，需要明确只有一个释放责任方，或使用共享所有权类型协调销毁。示例为错误代码。
 
 ```cpp
 int* p = new int;
@@ -294,14 +136,9 @@ delete p;
 delete p;
 ```
 
-未定义行为。
-
-
 ## undefined behavior {#source-156}
 
-UB 是 C++ 面试核心概念。
-
-例如：
+未定义行为表示标准不对该次程序行为施加要求，不能预测一定崩溃、固定输出或继续正常执行。以下空指针解引用、数组越界和释放后访问均为错误代码；优化器可以依据合法程序不会发生这些情况进行优化。
 
 ```cpp
 int* p = nullptr;
@@ -317,29 +154,4 @@ cout << a[10];
 int* p = new int;
 delete p;
 cout << *p;
-```
-
-这些都可能是：
-
-```text
-Undefined Behavior
-```
-
-意思不是：
-
-```text
-一定崩溃
-```
-
-而是：
-
-> C++ 标准不规定程序应该发生什么。
-
-它可能：
-
-```text
-崩溃
-正常运行
-输出乱码
-被优化器产生意外结果
 ```

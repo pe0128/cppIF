@@ -3,28 +3,48 @@ import topics from './topics.json' with { type: 'json' }
 
 export default defineConfig({
 	lang: 'zh-CN',
-	title: 'C++ 面试基础',
-	description: '将 C++98 / C++11 面试知识归纳为 18 个主题，涵盖语言、对象、所有权、STL 与并发。',
+	title: 'C++ 笔记',
+	description: 'C++98、C++11、C++14、C++17、C++20和C++23 的语法、用法与使用条件。',
 	base: '/cppIF/',
+	rewrites: { 'versions/cpp98.md': 'index.md' },
 	lastUpdated: true,
 	themeConfig: {
 		nav: [
-			{ text: '首页', link: '/' },
-			{ text: '主题总纲', link: '/overview' },
-			{ text: '原文索引', link: '/source-map' }
+			{ text: 'C++98', link: '/' },
+			{ text: 'C++11', link: '/versions/cpp11' },
+			{ text: 'C++14', link: '/versions/cpp14' },
+			{ text: 'C++17', link: '/versions/cpp17' },
+			{ text: 'C++20', link: '/versions/cpp20' },
+			{ text: 'C++23', link: '/versions/cpp23' }
 		],
 		sidebar: [
 			{
-				text: '阅读导航',
+				text: '标准版本',
 				items: [
-					{ text: '主题总纲', link: '/overview' },
-					{ text: '原文条目索引', link: '/source-map' }
+					{ text: 'C++98', link: '/' },
+					{ text: 'C++11', link: '/versions/cpp11' },
+					{ text: 'C++14', link: '/versions/cpp14' },
+					{ text: 'C++17', link: '/versions/cpp17' },
+					{ text: 'C++20', link: '/versions/cpp20' },
+					{ text: 'C++23', link: '/versions/cpp23' }
 				]
 			},
-			{ text: 'C++98 / C++11 知识体系', items: topics }
+			{ text: 'C++98和C++11 知识点', items: topics }
 		],
 		outline: { level: [2, 3], label: '本页目录' },
-		search: { provider: 'local' },
+		search: {
+			provider: 'local',
+			options: {
+				translations: {
+					button: { buttonText: '搜索笔记', buttonAriaLabel: '搜索笔记' },
+					modal: {
+						noResultsText: '没有找到相关笔记',
+						resetButtonTitle: '清除搜索',
+						footer: { selectText: '选择', navigateText: '切换', closeText: '关闭' }
+					}
+				}
+			}
+		},
 		docFooter: { prev: '上一章', next: '下一章' },
 		lastUpdated: { text: '最后更新' },
 		returnToTopLabel: '返回顶部',
@@ -34,7 +54,6 @@ export default defineConfig({
 		editLink: {
 			pattern: 'https://github.com/pe0128/cppIF/edit/main/docs/:path',
 			text: '在 GitHub 上编辑此页'
-		},
-		footer: { message: 'C++98 / C++11 · 按主题理解，按问题复习' }
+		}
 	}
 })

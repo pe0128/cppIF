@@ -2,3 +2,7 @@ node_modules/
 /docs/.vitepress/dist
 /docs/.vitepress/cache
 *.local
+.tmp*.mjs
+.tmp*.json
+/.tmp*/
+/scripts/

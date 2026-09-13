@@ -1,16 +1,8 @@
 # 线程、同步与原子操作
 
-## 概括要点
-
-- std::thread 启动线程；join 等待完成，detach 使其独立运行，必须另行保证被访问对象的生命周期。
-- mutex 保护临界区；lock_guard 以 RAII 管理锁，unique_lock 支持更灵活的锁操作和条件变量等待。
-- condition_variable 的等待需要谓词，唤醒后重新检查条件以应对虚假唤醒；共享条件也要同步访问。
-- atomic 保证特定原子操作，但多个操作组成的业务逻辑不自动成为不可分割的事务。
-- 未同步的冲突访问会形成数据竞争并导致未定义行为；volatile 不提供线程同步。
-
 ## std::thread 线程 {#source-124}
 
-C++11 第一次把线程正式放进标准库。
+std::thread 构造时启动线程执行指定可调用对象，参数默认经过值保存；需要共享原对象可显式传引用包装。线程对象与线程执行本身具有不同生命周期。示例通过 join 等待 work 完成。
 
 ```cpp
 #include <thread>
@@ -26,27 +18,21 @@ int main() {
 }
 ```
 
-
 ## join 和 detach {#source-125}
+
+join 阻塞当前线程直到目标线程完成，detach 解除线程对象对执行线程的关联。销毁仍可连接的 std::thread 会调用 std::terminate。detach 后必须另外保证被访问数据的生命周期，不能依赖局部变量随创建函数返回后仍存活。
 
 ```cpp
 t.join();
 ```
 
-当前线程等待 t 结束。
-
 ```cpp
 t.detach();
 ```
 
-线程独立运行。
-
-detach 很容易出现生命周期问题，所以实际代码需要非常谨慎。
-
-
-销毁仍处于 joinable 状态的 std::thread 会调用 std::terminate，因此必须妥善安排 join 或 detach。
-
 ## mutex {#source-126}
+
+mutex 的 lock 获得互斥所有权，unlock 释放。手工配对时，异常或提前返回可能跳过 unlock。保护共享状态时应让所有访问方遵循同一同步规则，可由 lock_guard 或 unique_lock 管理锁的释放。
 
 ```cpp
 mutex m;
@@ -60,10 +46,6 @@ void func() {
 }
 ```
 
-问题：
-
-如果中途抛异常：
-
 ```cpp
 m.lock();
 
@@ -72,12 +54,9 @@ throw runtime_error("error");
 m.unlock();
 ```
 
-锁不会释放。
-
-所以应该使用 RAII。
-
-
 ## lock_guard {#source-127}
+
+`lock_guard<Mutex>` 构造时加锁，析构时解锁，不提供手工 unlock 接口。它用于整个块都需要持锁的临界区，异常展开时也会释放锁。锁对象应有名字，否则临时对象可能在语句末立即析构。
 
 ```cpp
 mutex m;
@@ -89,36 +68,17 @@ void func() {
 }
 ```
 
-离开作用域自动：
-
-```cpp
-unlock()
-```
-
-这是 RAII 在并发中的典型应用。
-
-
 ## unique_lock {#source-128}
+
+`unique_lock<Mutex>` 记录是否拥有锁，可延迟加锁、手工解锁、重新加锁和移动所有权。condition_variable 的等待接口使用 `unique_lock<mutex>`，以便等待时释放并重新取得互斥锁。
 
 ```cpp
 unique_lock<mutex> lock(m);
 ```
 
-相比 lock_guard 更灵活：
-
-```text
-可以手动 lock
-可以 unlock
-可以延迟加锁
-可以与 condition_variable 配合
-```
-
-代价也稍复杂一些。
-
-
 ## condition_variable {#source-129}
 
-典型生产者消费者：
+condition_variable 用于等待受互斥锁保护的共享条件。wait 以原子方式释放锁并阻塞，被唤醒后重新取得锁；带谓词形式重复检查条件。生产者在同步保护下更新条件，再通知等待线程。
 
 ```cpp
 mutex m;
@@ -136,8 +96,6 @@ void worker() {
 }
 ```
 
-另一线程：
-
 ```cpp
 {
 	lock_guard<mutex> lock(m);
@@ -147,18 +105,9 @@ void worker() {
 cv.notify_one();
 ```
 
-wait 时会：
-
-```text
-释放 mutex
-进入等待
-被唤醒
-重新取得 mutex
-检查条件
-```
-
-
 ## 为什么 wait 要传 predicate？ {#source-130}
+
+条件变量允许虚假唤醒，通知到达时条件也可能已被另一线程改变。wait(lock, predicate) 等效于在条件为假时反复等待，不能把“收到通知”当作业务条件已经满足。谓词读取的共享状态仍需受同步保护。
 
 ```cpp
 cv.wait(lock, [] {
@@ -166,23 +115,9 @@ cv.wait(lock, [] {
 });
 ```
 
-因为存在：
-
-```text
-spurious wakeup
-虚假唤醒
-```
-
-线程被唤醒并不必然意味着条件已经成立。
-
-所以要重新检查：
-
-```cpp
-ready
-```
-
-
 ## atomic {#source-131}
+
+`std::atomic<T>` 为支持的类型提供原子读取、写入和读改写。counter++ 是单次原子读改写，但先检查 counter 再执行多个业务步骤不是一个整体原子事务。跨变量不变量可用互斥锁，或设计匹配的原子同步协议。
 
 ```cpp
 atomic<int> counter(0);
@@ -190,68 +125,20 @@ atomic<int> counter(0);
 counter++;
 ```
 
-对于简单原子变量，可避免数据竞争。
-
-注意：
-
-> atomic 不等于“一段复杂代码整体线程安全”。
-
-例如：
-
 ```cpp
 if (counter > 0) {
 	// other operations
 }
 ```
 
-多个操作组合起来仍可能存在竞态。
-
-
 ## data race {#source-132}
 
-两个线程：
-
-```text
-不同线程对同一内存位置有冲突访问，至少一个为非原子访问
-至少一个执行写操作
-缺少正确同步
-```
-
-形成 data race。
-
-C++ 内存模型下 data race 导致：
-
-```text
-undefined behavior
-```
-
-这是非常重要的并发八股。
-
+不同线程对同一内存位置进行冲突访问、至少一个为非原子操作，且缺少所需的先行发生关系时会形成数据竞争。数据竞争导致未定义行为。使用互斥锁或正确的原子操作建立同步，而不能用运行时“看起来没同时发生”代替规则。
 
 ## volatile {#source-138}
 
+volatile 限定对象的访问具有实现所定义的可观察要求，常用于硬件寄存器等底层接口。它不提供原子性，也不建立线程之间的同步关系。普通共享内存并发访问应使用 atomic 或 mutex，而不能用 volatile 替代。
+
 ```cpp
 volatile int flag;
-```
-
-主要告诉编译器：
-
-> 对该对象的访问可能受到编译器无法预测的外部因素影响，不要把相关访问随意优化掉。
-
-常见于：
-
-```text
-内存映射硬件寄存器
-底层嵌入式代码
-```
-
-极重要：
-
-> `volatile` 不能用于普通 C++ 多线程同步。
-
-多线程应使用：
-
-```text
-atomic
-mutex
 ```
