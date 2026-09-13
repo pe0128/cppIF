@@ -10,8 +10,8 @@ hero:
       text: 阅读主题总纲
       link: /overview
     - theme: alt
-      text: 从 const 开始
-      link: /guide/const
+      text: 阅读索引列表
+      link: /source-map
 
 features:
   - title: 同类知识集中阅读
