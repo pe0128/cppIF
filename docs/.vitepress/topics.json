@@ -1,0 +1,74 @@
+[
+	{
+		"text": "1. 知识地图与复习路线",
+		"link": "/guide/roadmap"
+	},
+	{
+		"text": "2. 指针、引用与参数传递",
+		"link": "/guide/pointers"
+	},
+	{
+		"text": "3. const、constexpr 与只读语义",
+		"link": "/guide/const"
+	},
+	{
+		"text": "4. static 与共享状态",
+		"link": "/guide/static"
+	},
+	{
+		"text": "5. 函数、重载与 inline",
+		"link": "/guide/functions"
+	},
+	{
+		"text": "6. 类、构造析构与拷贝",
+		"link": "/guide/objects"
+	},
+	{
+		"text": "7. 内存、生命周期、RAII 与异常",
+		"link": "/guide/memory"
+	},
+	{
+		"text": "8. 继承、虚函数与多态",
+		"link": "/guide/polymorphism"
+	},
+	{
+		"text": "9. 模板与编译期工具",
+		"link": "/guide/templates"
+	},
+	{
+		"text": "10. 类型推导、初始化与类型转换",
+		"link": "/guide/types"
+	},
+	{
+		"text": "11. STL 容器与复杂度",
+		"link": "/guide/containers"
+	},
+	{
+		"text": "12. 迭代器与算法",
+		"link": "/guide/iterators"
+	},
+	{
+		"text": "13. 仿函数、lambda 与函数包装",
+		"link": "/guide/callables"
+	},
+	{
+		"text": "14. 值类别、移动语义与完美转发",
+		"link": "/guide/move"
+	},
+	{
+		"text": "15. 智能指针与所有权",
+		"link": "/guide/smart-pointers"
+	},
+	{
+		"text": "16. 线程、同步与原子操作",
+		"link": "/guide/concurrency"
+	},
+	{
+		"text": "17. sizeof、对象布局与内存对齐",
+		"link": "/guide/layout"
+	},
+	{
+		"text": "18. 作用域、声明与编译链接",
+		"link": "/guide/build"
+	}
+]
