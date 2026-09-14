@@ -29,7 +29,7 @@ export default defineConfig({
 					{ text: 'C++23', link: '/versions/cpp23' }
 				]
 			},
-			{ text: 'C++98和C++11 知识点', items: topics }
+			{ text: 'C++98和C++11 详细知识点', items: topics }
 		],
 		outline: { level: [2, 3], label: '本页目录' },
 		search: {
