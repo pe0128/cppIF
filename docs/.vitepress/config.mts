@@ -19,7 +19,7 @@ export default defineConfig({
 		],
 		sidebar: [
 			{
-				text: '标准版本',
+				text: '标准版本及其特性概览',
 				items: [
 					{ text: 'C++98', link: '/' },
 					{ text: 'C++11', link: '/versions/cpp11' },
