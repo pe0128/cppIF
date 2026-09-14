@@ -5,4 +5,3 @@ node_modules/
 .tmp*.mjs
 .tmp*.json
 /.tmp*/
-/scripts/
